@@ -86,10 +86,3 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # 显示源码在右上角
 html_show_sourcelink = True
-
-latex_engine = 'xelatex'
-latex_use_xindy = False
-
-latex_elements = {
-    'preamble': '\\usepackage[UTF8]{ctex}\n'
-}
