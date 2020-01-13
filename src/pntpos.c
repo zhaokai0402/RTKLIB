@@ -217,6 +217,7 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         if (!(sys=satsys(obs[i].sat,NULL))) continue;
         
         /* reject duplicated observation data */
+        // 拒绝重复观测
         if (i<n-1&&i<MAXOBS-1&&obs[i].sat==obs[i+1].sat) {
             trace(2,"duplicated observation data %s sat=%2d\n",
                   time_str(obs[i].time,3),obs[i].sat);
@@ -224,16 +225,20 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
             continue;
         }
         /* geometric distance/azimuth/elevation angle */
+        // 集合距离/方位角/仰角
         if ((r=geodist(rs+i*6,rr,e))<=0.0||
             satazel(pos,e,azel+i*2)<opt->elmin) continue;
         
         /* psudorange with code bias correction */
+        // 伪距的码校正
         if ((P=prange(obs+i,nav,azel+i*2,iter,opt,&vmeas))==0.0) continue;
         
         /* excluded satellite? */
+        // 排除卫星
         if (satexclude(obs[i].sat,svh[i],opt)) continue;
         
         /* ionospheric corrections */
+        // 电离层延迟
         if (!ionocorr(obs[i].time,nav,obs[i].sat,pos,azel+i*2,
                       iter>0?opt->ionoopt:IONOOPT_BRDC,&dion,&vion)) continue;
         
@@ -242,11 +247,13 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
             dion*=SQR(lam_L1/lam_carr[0]);
         }
         /* tropospheric corrections */
+        // 对流层延迟
         if (!tropcorr(obs[i].time,nav,pos,azel+i*2,
                       iter>0?opt->tropopt:TROPOPT_SAAS,&dtrp,&vtrp)) {
             continue;
         }
         /* pseudorange residual */
+        // 伪距残差
         v[nv]=P-(r+dtr-CLIGHT*dts[i*2]+dion+dtrp);
         
         /* design matrix */
@@ -305,7 +312,21 @@ static int valsol(const double *azel, const int *vsat, int n,
     }
     return 1;
 }
-/* estimate receiver position ------------------------------------------------*/
+/* estimate receiver position ------------------------------------------------
+ * args:    obsd_t      *obs    I   观测数据
+ *          int         n       I
+ *          double      *rs     I   卫星位置和速度(ecef)
+ *          double      *dts    I   卫星钟差
+ *          double      var     I   卫星位置和钟差的方差
+ *          int         *svh    I   卫星健康标志
+ *          nav_t       *nav    I   导航数据
+ *          prcopt_t    *opt    I   处理选项
+ *          sol_t       *sol    IO  解算结果
+ *          double      *azel   IO  方位角和高度角
+ *          int         *vsat   IO  定位时有效性
+ *          double      *resp   IO  定位后伪距残差
+ *          char        *msg    O
+ */
 static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
                   const double *vare, const int *svh, const nav_t *nav,
                   const prcopt_t *opt, sol_t *sol, double *azel, int *vsat,
@@ -373,7 +394,21 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
     
     return 0;
 }
-/* raim fde (failure detection and exclution) -------------------------------*/
+/* raim fde (failure detection and exclution)
+ * args:    obsd_t      *obs    I   观测数据
+ *          int         n       I   观测数据的数量
+ *          double      *rs     I   卫星位置和速度(ecef)
+ *          double      *dts    I   卫星钟差
+ *          double      var     I   卫星位置和钟差的方差
+ *          int         *svh    I   卫星健康标志
+ *          nav_t       *nav    I   导航数据
+ *          prcopt_t    *opt    I   处理选项
+ *          sol_t       *sol    IO  解算结果
+ *          double      *azel   IO  方位角和高度角
+ *          int         *vsat   IO  定位时有效性
+ *          double      *resp   IO  定位后伪距残差
+ *          char        *msg    O
+ */
 static int raim_fde(const obsd_t *obs, int n, const double *rs,
                     const double *dts, const double *vare, const int *svh,
                     const nav_t *nav, const prcopt_t *opt, sol_t *sol,
@@ -490,7 +525,19 @@ static int resdop(const obsd_t *obs, int n, const double *rs, const double *dts,
     }
     return nv;
 }
-/* estimate receiver velocity ------------------------------------------------*/
+/* estimate receiver velocity ------------------------------------------------
+ * args:    obsd_t      *obs    I   观测数据
+ *          int         n       I
+ *          double      *rs     I   卫星位置和速度(ecef)
+ *          double      *dts    I   卫星钟差
+ *          double      var     I   卫星位置和钟差的方差
+ *          int         *svh    I   卫星健康标志
+ *          nav_t       *nav    I   导航数据
+ *          prcopt_t    *opt    I   处理选项
+ *          sol_t       *sol    IO  解算结果
+ *          double      *azel   IO  方位角和高度角
+ *          int         *vsat   IO  定位时有效性
+ */
 static void estvel(const obsd_t *obs, int n, const double *rs, const double *dts,
                    const nav_t *nav, const prcopt_t *opt, sol_t *sol,
                    const double *azel, const int *vsat)
@@ -561,13 +608,37 @@ extern int pntpos(const obsd_t *obs, int n, const nav_t *nav,
         opt_.ionoopt=IONOOPT_BRDC;
         opt_.tropopt=TROPOPT_SAAS;
     }
-    /* satellite positons, velocities and clocks */
+    /* satellite positons, velocities and clocks
+     * args   : gtime_t teph     I   time to select ephemeris (gpst)
+     *          obsd_t *obs      I   observation data
+     *          int    n         I   number of observation data
+     *          nav_t  *nav      I   navigation data
+     *          int    ephopt    I   ephemeris option (EPHOPT_???)
+     *          double *rs       O   satellite positions and velocities (ecef)
+     *          double *dts      O   satellite clocks
+     *          double *var      O   sat position and clock error variances (m^2)
+     *          int    *svh      O   sat health flag (-1:correction not available)
+     */
     satposs(sol->time,obs,n,nav,opt_.sateph,rs,dts,var,svh);
     
-    /* estimate receiver position with pseudorange */
+    /* estimate receiver position with pseudorange
+     * args:    obsd_t      *obs    I   观测数据
+     *          int         n       I   观测数据的数量
+     *          double      *rs     I   卫星位置和速度(ecef)
+     *          double      *dts    I   卫星钟差
+     *          double      var     I   卫星位置和钟差的方差
+     *          int         *svh    I   卫星健康标志
+     *          nav_t       *nav    I   导航数据
+     *          prcopt_t    *opt_   I   处理选项
+     *          sol_t       *sol    IO  解算结果
+     *          double      *azel   IO  方位角和高度角
+     *          int         *vsat   IO  定位时有效性
+     *          double      *resp   IO  定位后伪距残差
+     *          char        *msg    O
+     */
     stat=estpos(obs,n,rs,dts,var,svh,nav,&opt_,sol,azel_,vsat,resp,msg);
     
-    /* raim fde */
+    /* raim fde (failure detection and exclution) */
     if (!stat&&n>=6&&opt->posopt[4]) {
         stat=raim_fde(obs,n,rs,dts,var,svh,nav,&opt_,sol,azel_,vsat,resp,msg);
     }
